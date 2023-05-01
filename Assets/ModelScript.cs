@@ -38,10 +38,12 @@ public class ModelScript : MonoBehaviour {
         Vector3 temp8 = matrixT.GetColumn(1);
         Vector3 temp9 = matrixT.GetColumn(2);
         
-        Debug.Log(GetScaleVector(matrixA));
+        Debug.Log(GetScaleVector(matrixT));
 
         var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
         SetTranslationVector(ref matrixT, interpolatedTranslation);
+        var interpolatedScale = (1.0f - Time) * GetScaleVector(matrixA) + Time * GetScaleVector(matrixB);
+        //SetScale(ref matrixT, interpolatedScale);
         
         using (vectors.Begin()) {
             vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+temp1, Color.red);
@@ -75,6 +77,22 @@ public class ModelScript : MonoBehaviour {
         var scaleZ = MathF.Sqrt(matrix.m20 * matrix.m20 + matrix.m21 * matrix.m21 + matrix.m22 * matrix.m22);
 
         return new Vector3(scaleX, scaleY, scaleZ);
+    }
+
+    public void SetScale(ref Matrix4x4 matrix, Vector3 scaleVector)
+    {
+        var column1 = matrix.GetColumn(0);
+        var column2 = matrix.GetColumn(1);
+        var column3 = matrix.GetColumn(2);
+
+        var scalexFactor = column1.x * scaleVector.x;
+        var scaleyFactor = column2.y * scaleVector.y;
+        var scalezFactor = column3.z * scaleVector.z;
+
+        matrix.m00 = scalexFactor;
+        matrix.m01 = scaleyFactor;
+        matrix.m02 = scalezFactor;
+
     }
 }
 
