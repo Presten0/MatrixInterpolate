@@ -18,7 +18,7 @@ public class ModelScript : MonoBehaviour {
     [SerializeField]
     public Matrix4x4 matrixB = Matrix4x4.identity;
     
-    private Matrix4x4 matrixT = Matrix4x4.identity;
+    private Matrix4x4 matrixI = Matrix4x4.identity;
 
     void OnEnable() {
         vectors = GetComponent<VectorRenderer>();
@@ -26,37 +26,50 @@ public class ModelScript : MonoBehaviour {
 
     void Update()
     {
-        Vector3 temp1 = matrixA.GetColumn(0);
-        Vector3 temp2 = matrixA.GetColumn(1);
-        Vector3 temp3 = matrixA.GetColumn(2);
-        
-        Vector3 temp4 = matrixB.GetColumn(0);
-        Vector3 temp5 = matrixB.GetColumn(1);
-        Vector3 temp6 = matrixB.GetColumn(2);
-        
-        Vector3 temp7 = matrixT.GetColumn(0);
-        Vector3 temp8 = matrixT.GetColumn(1);
-        Vector3 temp9 = matrixT.GetColumn(2);
-        
-        Debug.Log(GetScaleVector(matrixT));
-
         var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
-        SetTranslationVector(ref matrixT, interpolatedTranslation);
-        var interpolatedScale = (1.0f - Time) * GetScaleVector(matrixA) + Time * GetScaleVector(matrixB);
-        //SetScale(ref matrixT, interpolatedScale);
+        SetTranslationVector(ref matrixI, interpolatedTranslation);
+        /*var interpolatedScale = (1.0f - Time) * GetScaleVector(matrixA) + Time * GetScaleVector(matrixB);
+        SetScale(ref matrixT, interpolatedScale);*/
         
+        Vector3 AX = matrixA.GetColumn(0);
+        Vector3 AY = matrixA.GetColumn(1);
+        Vector3 AZ = matrixA.GetColumn(2);
+        
+        Vector3 BX = matrixB.GetColumn(0);
+        Vector3 BY = matrixB.GetColumn(1);
+        Vector3 BZ = matrixB.GetColumn(2);
+        
+        Vector3 IX = matrixI.GetColumn(0);
+        Vector3 IY = matrixI.GetColumn(1);
+        Vector3 IZ = matrixI.GetColumn(2);
+        
+        Debug.Log(GetInterpolatedScaleMagnitudes(matrixA, matrixB));
+
         using (vectors.Begin()) {
-            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+temp1, Color.red);
-            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+temp2, Color.green);
-            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+temp3, Color.blue);
             
-            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+temp4, Color.red);
-            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+temp5, Color.green);
-            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+temp6, Color.blue);
+            //Visualize matrix A
+            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+AX, Color.red);
+            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+AY, Color.green);
+            vectors.Draw(GetTranslationVector(matrixA), GetTranslationVector(matrixA)+AZ, Color.blue);
             
-            vectors.Draw(GetTranslationVector(matrixT), GetTranslationVector(matrixT)+temp7, Color.red);
-            vectors.Draw(GetTranslationVector(matrixT), GetTranslationVector(matrixT)+temp8, Color.green);
-            vectors.Draw(GetTranslationVector(matrixT), GetTranslationVector(matrixT)+temp9, Color.blue);
+            //Visualize matrix B
+            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+BX, Color.red);
+            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+BY, Color.green);
+            vectors.Draw(GetTranslationVector(matrixB), GetTranslationVector(matrixB)+BZ, Color.blue);
+            
+            //Visualize box from interpolated matrix
+            vectors.Draw(GetTranslationVector(matrixI), GetTranslationVector(matrixI)+IX, Color.red);
+            vectors.Draw(GetTranslationVector(matrixI)+IY, GetTranslationVector(matrixI)+IX+IY, Color.red);
+            vectors.Draw(GetTranslationVector(matrixI)+IZ, GetTranslationVector(matrixI)+IX+IZ, Color.red);
+            vectors.Draw(GetTranslationVector(matrixI)+IY+IZ, GetTranslationVector(matrixI)+IX+IY+IZ, Color.red);
+            vectors.Draw(GetTranslationVector(matrixI), GetTranslationVector(matrixI)+IY, Color.green);
+            vectors.Draw(GetTranslationVector(matrixI)+IX, GetTranslationVector(matrixI)+IY+IX, Color.green);
+            vectors.Draw(GetTranslationVector(matrixI)+IZ, GetTranslationVector(matrixI)+IY+IZ, Color.green);
+            vectors.Draw(GetTranslationVector(matrixI)+IX+IZ, GetTranslationVector(matrixI)+IY+IX+IZ, Color.green);
+            vectors.Draw(GetTranslationVector(matrixI), GetTranslationVector(matrixI)+IZ, Color.blue);
+            vectors.Draw(GetTranslationVector(matrixI)+IX, GetTranslationVector(matrixI)+IZ+IX, Color.blue);
+            vectors.Draw(GetTranslationVector(matrixI)+IY, GetTranslationVector(matrixI)+IZ+IY, Color.blue);
+            vectors.Draw(GetTranslationVector(matrixI)+IX+IY, GetTranslationVector(matrixI)+IZ+IX+IY, Color.blue);
         }
     }
 
@@ -70,13 +83,21 @@ public class ModelScript : MonoBehaviour {
         matrix.SetColumn(3, translationVector);
     }
 
-    public Vector3 GetScaleVector(Matrix4x4 matrix)
+    public Vector3 GetInterpolatedScaleMagnitudes(Matrix4x4 matrixA, Matrix4x4 matrixB)
     {
-        var scaleX = MathF.Sqrt(matrix.m00 * matrix.m00 + matrix.m01 * matrix.m01 + matrix.m02 * matrix.m02);
-        var scaleY = MathF.Sqrt(matrix.m10 * matrix.m10 + matrix.m11 * matrix.m11 + matrix.m12 * matrix.m12);
-        var scaleZ = MathF.Sqrt(matrix.m20 * matrix.m20 + matrix.m21 * matrix.m21 + matrix.m22 * matrix.m22);
+        var scaleAX = MathF.Sqrt(matrixA.m00 * matrixA.m00 + matrixA.m10 * matrixA.m10 + matrixA.m20 * matrixA.m20);
+        var scaleAY = MathF.Sqrt(matrixA.m01 * matrixA.m01 + matrixA.m11 * matrixA.m11 + matrixA.m21 * matrixA.m21);
+        var scaleAZ = MathF.Sqrt(matrixA.m02 * matrixA.m02 + matrixA.m12 * matrixA.m12 + matrixA.m22 * matrixA.m22);
+        
+        var scaleBX = MathF.Sqrt(matrixB.m00 * matrixB.m00 + matrixB.m01 * matrixB.m01 + matrixB.m02 * matrixB.m02);
+        var scaleBY = MathF.Sqrt(matrixB.m01 * matrixB.m01 + matrixB.m11 * matrixB.m11 + matrixB.m21 * matrixB.m21);
+        var scaleBZ = MathF.Sqrt(matrixB.m02 * matrixB.m02 + matrixB.m12 * matrixB.m12 + matrixB.m22 * matrixB.m22);
 
-        return new Vector3(scaleX, scaleY, scaleZ);
+        var scaleIX = (1.0f - Time) * scaleAX + Time * scaleBX;
+        var scaleIY = (1.0f - Time) * scaleAY + Time * scaleBY;
+        var scaleIZ = (1.0f - Time) * scaleAZ + Time * scaleBZ;
+        
+        return new Vector3(scaleIX, scaleIY, scaleIZ);
     }
 
     public void SetScale(ref Matrix4x4 matrix, Vector3 scaleVector)
