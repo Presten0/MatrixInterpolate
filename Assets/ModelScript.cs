@@ -13,12 +13,9 @@ public class ModelScript : MonoBehaviour {
     [SerializeField, Range(0f, 1f)] 
     private float Time;
     
-    [SerializeField]
-    public Matrix4x4 matrixA = Matrix4x4.identity;
-    [SerializeField]
-    public Matrix4x4 matrixB = Matrix4x4.identity;
-    
-    private Matrix4x4 matrixI = Matrix4x4.identity;
+    [SerializeField,HideInInspector]internal Matrix4x4 matrixA = Matrix4x4.identity;
+    [SerializeField,HideInInspector]internal Matrix4x4 matrixB = Matrix4x4.identity;
+    [SerializeField,HideInInspector]internal Matrix4x4 matrixI = Matrix4x4.identity;
 
     void OnEnable() {
         vectors = GetComponent<VectorRenderer>();
@@ -26,6 +23,9 @@ public class ModelScript : MonoBehaviour {
 
     void Update()
     {
+        //matrixA = Matrix4x4.identity;
+        //matrixB = Matrix4x4.identity;
+        
         var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
         SetTranslationVector(ref matrixI, interpolatedTranslation);
         /*var interpolatedScale = (1.0f - Time) * GetScaleVector(matrixA) + Time * GetScaleVector(matrixB);
@@ -77,10 +77,12 @@ public class ModelScript : MonoBehaviour {
     {
         return matrix.GetColumn(3);
     }
-
+    
     public void SetTranslationVector(ref Matrix4x4 matrix, Vector3 translationVector)
     {
-        matrix.SetColumn(3, translationVector);
+        matrix.m03 = translationVector.x;
+        matrix.m13 = translationVector.y;
+        matrix.m23 = translationVector.z;
     }
 
     public Vector3 GetInterpolatedScaleMagnitudes(Matrix4x4 matrixA, Matrix4x4 matrixB)
@@ -115,10 +117,61 @@ public class ModelScript : MonoBehaviour {
         matrix.m02 = scalezFactor;
 
     }
+
+    public Quaternion GetRotation(Matrix4x4 matrix)
+    {
+        var cosX = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
+        var cosY = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
+        var cosZ = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
+
+        var smallCross = Vector3.zero;
+        var sinHalf = 0.0f;
+        var cosHalf = 0.0f;
+        
+        if (cosX < cosY && cosX < cosZ)
+        {
+            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
+            sinHalf= MathF.Sqrt((1 - cosX) / 2);
+            cosHalf= MathF.Sqrt((1 + cosX) / 2);
+
+        } else if (cosY < cosX && cosY < cosZ)
+        {
+            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
+            sinHalf= MathF.Sqrt((1 - cosY) / 2);
+            cosHalf= MathF.Sqrt((1 + cosY) / 2);
+            
+        } else if (cosZ < cosX && cosZ < cosY)
+        {
+            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
+            sinHalf= MathF.Sqrt((1 - cosZ) / 2);
+            cosHalf= MathF.Sqrt((1 + cosZ) / 2);
+            
+        } else
+        {
+            return Quaternion.identity;
+        }
+
+        var quat = smallCross * sinHalf;
+
+        return new Quaternion(quat.x, quat.y, quat.z, cosHalf);
+    }
+
+    public Quaternion GetInterpolatedQuaternion(Quaternion quatA, Quaternion quatB)
+    {
+        var quatC = new Quaternion(quatA.x * quatB.x, quatA.y * quatB.y, quatA.z * quatB.z, -quatA.w * quatB.w);
+        
+        var lerpedAngle = MathF.Acos((1.0f - Time) * quatA.w + Time * quatB.w);
+    }
+
+    public Vector3 GetNormalizedVector(Vector3 vector)
+    {
+        var magnitude = MathF.Sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+        return vector / magnitude;
+    }
 }
 
 [CustomEditor(typeof(ModelScript))]
-public class ExampleGUI : Editor {
+public class ModelGUI : Editor {
     void OnSceneGUI() {
         var ex = target as ModelScript;
         if (ex == null) return;
@@ -134,4 +187,61 @@ public class ExampleGUI : Editor {
             EditorUtility.SetDirty(target);
         }
     }
+    public override void OnInspectorGUI()
+    {
+        base.OnInspectorGUI();
+        
+        var ex = target as ModelScript;
+        if (ex == null) return;
+
+        EditorGUI.BeginChangeCheck();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.PrefixLabel("Matrix A");
+        EditorGUILayout.BeginVertical();
+
+        var resultA = Matrix4x4.identity;
+        for (var i = 0; i < 4; i++)
+        {
+            EditorGUILayout.BeginHorizontal();
+            for (var j = 0; j < 4; j++)
+            {
+                resultA[i, j] = EditorGUILayout.FloatField((ex.matrixA[i, j]));
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.EndHorizontal();
+        
+        EditorGUILayout.Space();
+        
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.PrefixLabel("Matrix B");
+        EditorGUILayout.BeginVertical();
+
+        var resultB = Matrix4x4.identity;
+        for (var i = 0; i < 4; i++)
+        {
+            EditorGUILayout.BeginHorizontal();
+            for (var j = 0; j < 4; j++)
+            {
+                resultB[i, j] = EditorGUILayout.FloatField((ex.matrixB[i, j]));
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.EndHorizontal();
+        
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(ex, "Changed matrix");
+            ex.matrixA = resultA;
+            ex.matrixB = resultB;
+            EditorUtility.SetDirty(ex);
+        }
+    }
 }
+
+
