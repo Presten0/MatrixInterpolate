@@ -28,9 +28,7 @@ public class ModelScript : MonoBehaviour {
         
         var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
         SetTranslationVector(ref matrixI, interpolatedTranslation);
-        /*var interpolatedScale = (1.0f - Time) * GetScaleVector(matrixA) + Time * GetScaleVector(matrixB);
-        SetScale(ref matrixT, interpolatedScale);*/
-        
+
         Vector3 AX = matrixA.GetColumn(0);
         Vector3 AY = matrixA.GetColumn(1);
         Vector3 AZ = matrixA.GetColumn(2);
@@ -158,9 +156,36 @@ public class ModelScript : MonoBehaviour {
 
     public Quaternion GetInterpolatedQuaternion(Quaternion quatA, Quaternion quatB)
     {
-        var quatC = new Quaternion(quatA.x * quatB.x, quatA.y * quatB.y, quatA.z * quatB.z, -quatA.w * quatB.w);
+        var inverseQuatA = new Quaternion(quatA.x, quatA.y, quatA.z, -quatA.w);
+        var quatI = quatB * inverseQuatA;
+        var previousAngle = MathF.Acos(quatI.w);
         
-        var lerpedAngle = MathF.Acos((1.0f - Time) * quatA.w + Time * quatB.w);
+        var newAngle = previousAngle * Time;
+        var axis = new Vector3(quatI.x, quatI.y, quatI.z) / MathF.Sin(previousAngle);
+        var newRot = axis * newAngle;
+        
+        var quatInterpolated = new Quaternion(newRot.x, newRot.y, newRot.z, newAngle);
+        return quatInterpolated * quatA;
+    }
+
+    public Matrix4x4 ConvertQuaternion(Quaternion quat)
+    {
+        var newMatrix = Matrix4x4.identity;
+        
+        //Column 1
+        newMatrix.m00 = (1 - 2 * (quat.y * quat.y) - 2 * (quat.z * quat.z));
+        newMatrix.m10 = (2 * quat.x * quat.y) - (2 * quat.w * quat.z);
+        newMatrix.m20 = (2 * quat.x * quat.z) + (2 * quat.w * quat.y);
+        //Column 2
+        newMatrix.m01 = (2 * quat.x * quat.y) + (2 * quat.w * quat.z);
+        newMatrix.m11 = (1 - 2 * (quat.x * quat.x) - 2 * (quat.z * quat.z));
+        newMatrix.m21 = (2 * quat.y * quat.z) - (2 * quat.w * quat.x);
+        //Column 3
+        newMatrix.m02 = (2 * quat.x * quat.z) - (2 * quat.w * quat.y);
+        newMatrix.m12 = (2 * quat.y * quat.z) + (2 * quat.w * quat.x);
+        newMatrix.m22 = (1 - 2 * (quat.x * quat.x) - 2 * (quat.y * quat.y));
+
+        return newMatrix;
     }
 
     public Vector3 GetNormalizedVector(Vector3 vector)
