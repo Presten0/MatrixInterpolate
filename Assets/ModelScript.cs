@@ -29,7 +29,15 @@ public class ModelScript : MonoBehaviour {
         var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
         SetTranslationVector(ref matrixI, interpolatedTranslation);
 
-        Vector3 AX = matrixA.GetColumn(0);
+        var rotationA = GetRotation(matrixA);
+        var rotationB = GetRotation(matrixB);
+        var rotationI = GetInterpolatedQuaternion(rotationA, rotationB);
+        var rotationMatrixI = ConvertQuaternion(rotationI);
+        SetRotation(ref matrixI, rotationMatrixI);
+        
+        //SetScale(ref matrixI, GetInterpolatedScaleMagnitudes(matrixA, matrixB));
+        
+        Vector3 AX = matrixA.GetColumn(0); //GetColumn returns a vector representing the index, example index:0 returns (m00, m10, m20)
         Vector3 AY = matrixA.GetColumn(1);
         Vector3 AZ = matrixA.GetColumn(2);
         
@@ -41,8 +49,6 @@ public class ModelScript : MonoBehaviour {
         Vector3 IY = matrixI.GetColumn(1);
         Vector3 IZ = matrixI.GetColumn(2);
         
-        Debug.Log(GetRotation(matrixA));
-
         using (vectors.Begin()) {
             
             //Visualize matrix A
@@ -97,23 +103,23 @@ public class ModelScript : MonoBehaviour {
         var scaleIY = (1.0f - Time) * scaleAY + Time * scaleBY;
         var scaleIZ = (1.0f - Time) * scaleAZ + Time * scaleBZ;
         
-        return new Vector3(scaleIX, scaleIY, scaleIZ);
+        return new Vector3(scaleIX, scaleIY, scaleIZ); //Scaling vector
+    }
+
+    public Vector3 GetScale(Matrix4x4 matrix)
+    {
+        var scaleX = MathF.Sqrt(matrix.m00 * matrix.m00 + matrix.m10 * matrix.m10 + matrix.m20 * matrix.m20);
+        var scaleY = MathF.Sqrt(matrix.m01 * matrix.m01 + matrix.m11 * matrix.m11 + matrix.m21 * matrix.m21);
+        var scaleZ = MathF.Sqrt(matrix.m02 * matrix.m02 + matrix.m12 * matrix.m12 + matrix.m22 * matrix.m22);
+
+        return new Vector3(scaleX, scaleY, scaleZ); //Scaling vector
     }
 
     public void SetScale(ref Matrix4x4 matrix, Vector3 scaleVector)
     {
-        var column1 = matrix.GetColumn(0);
-        var column2 = matrix.GetColumn(1);
-        var column3 = matrix.GetColumn(2);
-
-        var scalexFactor = column1.x * scaleVector.x;
-        var scaleyFactor = column2.y * scaleVector.y;
-        var scalezFactor = column3.z * scaleVector.z;
-
-        matrix.m00 = scalexFactor;
-        matrix.m01 = scaleyFactor;
-        matrix.m02 = scalezFactor;
-
+        matrix.SetColumn(0,matrix.GetColumn(0)*scaleVector.x);
+        matrix.SetColumn(1,matrix.GetColumn(1)*scaleVector.y);
+        matrix.SetColumn(2,matrix.GetColumn(2)*scaleVector.z);
     }
 
     public Quaternion GetRotation(Matrix4x4 matrix)
@@ -127,11 +133,6 @@ public class ModelScript : MonoBehaviour {
         var crossZ = Vector3.Cross(new Vector3(0, 0, 1),GetNormalizedVector(matrix.GetColumn(2)));
 
         var axis = GetNormalizedVector(crossX + crossY + crossZ);
-        
-        using (vectors.Begin()) {
-            
-            vectors.Draw(GetTranslationVector(matrixA), axis, Color.cyan);
-        }
 
         var angle = 0.0f;
         
@@ -167,11 +168,12 @@ public class ModelScript : MonoBehaviour {
                                   (projUnit.z * projUnit.z));
 
         return MathF.Acos(scalarProd / (projprimMag * projUnitMag));
+        
     }
 
     public Quaternion GetInterpolatedQuaternion(Quaternion quatA, Quaternion quatB)
     {
-        var inverseQuatA = new Quaternion(quatA.x, quatA.y, quatA.z, -quatA.w);
+        /*var inverseQuatA = new Quaternion(quatA.x, quatA.y, quatA.z, -quatA.w);
         var quatI = quatB * inverseQuatA;
         var previousAngle = MathF.Acos(quatI.w);
         
@@ -180,7 +182,73 @@ public class ModelScript : MonoBehaviour {
         var newRot = axis * newAngle;
         
         var quatInterpolated = new Quaternion(newRot.x, newRot.y, newRot.z, newAngle);
-        return quatInterpolated * quatA;
+        return quatInterpolated * quatA;*/
+
+
+        // The two input quaternions
+        float ax = quatA.x;
+        float ay = quatA.y;
+        float az = quatA.z;
+        float aw = quatA.w;
+        float bx = quatB.x;
+        float by = quatB.y;
+        float bz = quatB.z;
+        float bw = quatB.w;
+
+// The interpolation parameter
+        float t = Time;
+
+// The output quaternion will be computed here
+        float cx,cy,cz,cw;
+
+// Compute the "cosine of the angle" between the
+// quaternions, using the dot product
+        float cosOmega = aw*bw + ax*bx + ay*by + az*bz;
+
+// If negative dot, negate one of the input
+// quaternions, to take the shorter 4D "arc"
+        if (cosOmega < 0.0f) {
+            bw = -bw;
+            bx = -bx;
+            by = -by;
+            bz = -bz;
+            cosOmega = -cosOmega;
+        }
+
+// Check if they are very close together, to protect
+// against divide-by-zero
+        float k0, k1;
+        if (cosOmega > 0.9999f) {
+
+            // Very close - just use linear interpolation
+            k0 = 1.0f-t;
+            k1 = t;
+
+        } else {
+
+            // Compute the sin of the angle using the
+            // trig identity sin^2(omega) + cos^2(omega) = 1
+            float sinOmega = Mathf.Sqrt(1.0f - cosOmega*cosOmega);
+
+            // Compute the angle from its sine and cosine
+            float omega = Mathf.Atan2(sinOmega, cosOmega);
+
+            // Compute inverse of denominator, so we only have
+            // to divide once
+            float oneOverSinOmega = 1.0f / sinOmega;
+
+            // Compute interpolation parameters
+            k0 = Mathf.Sin((1.0f - t) * omega) * oneOverSinOmega;
+            k1 = Mathf.Sin(t * omega) * oneOverSinOmega;
+        }
+
+// Interpolate
+        cw = aw*k0 + bw*k1;
+        cx = ax*k0 + bx*k1;
+        cy = ay*k0 + by*k1;
+        cz = az*k0 + bz*k1;
+
+        return new Quaternion(cx, cy, cz, cw);
     }
 
     public Matrix4x4 ConvertQuaternion(Quaternion quat)
@@ -203,9 +271,17 @@ public class ModelScript : MonoBehaviour {
         return newMatrix;
     }
 
-    public void SetRotation()
+    public void SetRotation(ref Matrix4x4 matrix, Matrix4x4 rotationMatrix)
     {
-        
+        matrix.m00 = rotationMatrix.m00;
+        matrix.m01 = rotationMatrix.m01;
+        matrix.m02 = rotationMatrix.m02;
+        matrix.m10 = rotationMatrix.m10;
+        matrix.m11 = rotationMatrix.m11;
+        matrix.m12 = rotationMatrix.m12;
+        matrix.m20 = rotationMatrix.m20;
+        matrix.m21 = rotationMatrix.m21;
+        matrix.m22 = rotationMatrix.m22;
     }
 
     public Vector3 GetNormalizedVector(Vector3 vector)
@@ -229,6 +305,17 @@ public class ModelGUI : Editor {
             Undo.RecordObject(target, "Vector Positions");
             ex.SetTranslationVector(ref ex.matrixA, a); //Set translation-vector to handles position
             ex.SetTranslationVector(ref ex.matrixB, b); //Set translation-vector to handles position
+
+            EditorUtility.SetDirty(target);
+        }
+        
+        EditorGUI.BeginChangeCheck();
+        var c = Handles.RotationHandle(ex.GetRotation(ex.matrixA), ex.GetTranslationVector(ex.matrixA)); //H
+
+        if (EditorGUI.EndChangeCheck()) {
+            Undo.RecordObject(target, "Vector Positions");
+            ex.SetRotation(ref ex.matrixA, ex.ConvertQuaternion(c));
+
             EditorUtility.SetDirty(target);
         }
     }
@@ -266,12 +353,32 @@ public class ModelGUI : Editor {
         EditorGUILayout.BeginVertical();
 
         var resultB = Matrix4x4.identity;
-        for (var i = 0; i < 4; i++)
+        for (var k = 0; k < 4; k++)
         {
             EditorGUILayout.BeginHorizontal();
-            for (var j = 0; j < 4; j++)
+            for (var l = 0; l < 4; l++)
             {
-                resultB[i, j] = EditorGUILayout.FloatField((ex.matrixB[i, j]));
+                resultB[k, l] = EditorGUILayout.FloatField((ex.matrixB[k, l]));
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.EndHorizontal();
+        
+        EditorGUILayout.Space();
+        
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.PrefixLabel("Matrix I");
+        EditorGUILayout.BeginVertical();
+
+        var resultI = Matrix4x4.identity;
+        for (var o = 0; o < 4; o++)
+        {
+            EditorGUILayout.BeginHorizontal();
+            for (var p = 0; p < 4; p++)
+            {
+                resultB[o, p] = EditorGUILayout.FloatField((ex.matrixI[o, p]));
             }
             EditorGUILayout.EndHorizontal();
         }
@@ -284,6 +391,7 @@ public class ModelGUI : Editor {
             Undo.RecordObject(ex, "Changed matrix");
             ex.matrixA = resultA;
             ex.matrixB = resultB;
+            ex.matrixI = resultI;
             EditorUtility.SetDirty(ex);
         }
     }
