@@ -41,7 +41,7 @@ public class ModelScript : MonoBehaviour {
         Vector3 IY = matrixI.GetColumn(1);
         Vector3 IZ = matrixI.GetColumn(2);
         
-        Debug.Log(GetInterpolatedScaleMagnitudes(matrixA, matrixB));
+        Debug.Log(GetRotation(matrixA));
 
         using (vectors.Begin()) {
             
@@ -118,40 +118,55 @@ public class ModelScript : MonoBehaviour {
 
     public Quaternion GetRotation(Matrix4x4 matrix)
     {
-        var cosX = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
-        var cosY = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
-        var cosZ = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
-
-        var smallCross = Vector3.zero;
-        var sinHalf = 0.0f;
-        var cosHalf = 0.0f;
+        var primX = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
+        var primY = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
+        var primZ = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
         
-        if (cosX < cosY && cosX < cosZ)
-        {
-            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
-            sinHalf= MathF.Sqrt((1 - cosX) / 2);
-            cosHalf= MathF.Sqrt((1 + cosX) / 2);
+        var crossX = Vector3.Cross(new Vector3(1, 0, 0),GetNormalizedVector(matrix.GetColumn(0)));
+        var crossY = Vector3.Cross(new Vector3(0, 1, 0),GetNormalizedVector(matrix.GetColumn(1)));
+        var crossZ = Vector3.Cross(new Vector3(0, 0, 1),GetNormalizedVector(matrix.GetColumn(2)));
 
-        } else if (cosY < cosX && cosY < cosZ)
-        {
-            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
-            sinHalf= MathF.Sqrt((1 - cosY) / 2);
-            cosHalf= MathF.Sqrt((1 + cosY) / 2);
+        var axis = GetNormalizedVector(crossX + crossY + crossZ);
+        
+        using (vectors.Begin()) {
             
-        } else if (cosZ < cosX && cosZ < cosY)
+            vectors.Draw(GetTranslationVector(matrixA), axis, Color.cyan);
+        }
+
+        var angle = 0.0f;
+        
+        if (primX < primY && primX < primZ)
         {
-            smallCross = Vector3.Cross(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
-            sinHalf= MathF.Sqrt((1 - cosZ) / 2);
-            cosHalf= MathF.Sqrt((1 + cosZ) / 2);
+            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(0)), new Vector3(1, 0, 0), axis);
+
+        } else if (primY < primX && primY < primZ)
+        {
+            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(1)), new Vector3(0, 1, 0), axis);
+            
+        } else if (primZ < primX && primZ < primY)
+        {
+            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(2)), new Vector3(0, 0, 1), axis);
             
         } else
         {
             return Quaternion.identity;
         }
+        
+        return new Quaternion(axis.x*MathF.Sin(angle/2),axis.y*MathF.Sin(angle/2),axis.z*MathF.Sin(angle/2), MathF.Cos(angle/2));
+    }
 
-        var quat = smallCross * sinHalf;
+    public float ProjectPairAngle(Vector3 vectorPrim, Vector3 vectorUnit, Vector3 normal)
+    {
+        var projPrim = Vector3.ProjectOnPlane(vectorPrim, normal);
+        var projUnit = Vector3.ProjectOnPlane(vectorUnit, normal);
+        var scalarProd = Vector3.Dot(projUnit, projPrim);
+        
+        var projprimMag = MathF.Sqrt((projPrim.x * projPrim.x) + (projPrim.y * projPrim.y) +
+                                  (projPrim.z * projPrim.z));
+        var projUnitMag = MathF.Sqrt((projUnit.x * projUnit.x) + (projUnit.y * projUnit.y) +
+                                  (projUnit.z * projUnit.z));
 
-        return new Quaternion(quat.x, quat.y, quat.z, cosHalf);
+        return MathF.Acos(scalarProd / (projprimMag * projUnitMag));
     }
 
     public Quaternion GetInterpolatedQuaternion(Quaternion quatA, Quaternion quatB)
@@ -188,6 +203,11 @@ public class ModelScript : MonoBehaviour {
         return newMatrix;
     }
 
+    public void SetRotation()
+    {
+        
+    }
+
     public Vector3 GetNormalizedVector(Vector3 vector)
     {
         var magnitude = MathF.Sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
@@ -202,8 +222,8 @@ public class ModelGUI : Editor {
         if (ex == null) return;
 
         EditorGUI.BeginChangeCheck();
-        var a = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixA), Quaternion.identity); //Handle at translation-vector
-        var b = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixB), Quaternion.identity); //Handle at translation-vector
+        var a = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixA), ex.GetRotation(ex.matrixA)); //Handle at translation-vector
+        var b = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixB), ex.GetRotation(ex.matrixB)); //Handle at translation-vector
 
         if (EditorGUI.EndChangeCheck()) {
             Undo.RecordObject(target, "Vector Positions");
