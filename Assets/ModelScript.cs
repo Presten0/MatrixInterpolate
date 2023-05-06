@@ -154,74 +154,82 @@ public class ModelScript : MonoBehaviour {
 
     public Quaternion GetRotation(Matrix4x4 matrix)
     {
-        var primX = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
-        var primY = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
-        var primZ = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
+        var matrixColumnX = matrix.GetColumn(0);
+        var matrixColumnY = matrix.GetColumn(1);
+        var matrixColumnZ = matrix.GetColumn(2);
 
-        var crossX = Vector3.Cross(new Vector3(1, 0, 0),GetNormalizedVector(matrix.GetColumn(0)));
-        var crossY = Vector3.Cross(new Vector3(0, 1, 0),GetNormalizedVector(matrix.GetColumn(1)));
-        var crossZ = Vector3.Cross(new Vector3(0, 0, 1),GetNormalizedVector(matrix.GetColumn(2)));
+        matrix.SetColumn(0, matrixColumnX.normalized);
+        matrix.SetColumn(1, matrixColumnY.normalized);
+        matrix.SetColumn(2, matrixColumnZ.normalized);
 
-        var axis = GetNormalizedVector(crossX + crossY + crossZ);
-        Debug.Log(crossX);
-        Debug.Log(crossY);
-        Debug.Log(crossZ);
+        float fourWSquaredMinus1 = matrix.m00 + matrix.m11 + matrix.m22;
+        float fourXSquaredMinus1 = matrix.m00 - matrix.m11 - matrix.m22;
+        float fourYSquaredMinus1 = matrix.m11 - matrix.m00 - matrix.m22;
+        float fourZSquaredMinus1 = matrix.m22 - matrix.m00 - matrix.m11;
+
+        float w = 0, x = 0, y = 0, z = 0;
         
-        if(crossX == Vector3.zero && crossY == Vector3.zero && crossZ == Vector3.zero)
-            return Quaternion.identity;
-
-        var angle = 0.0f;
+        int biggestIndex = 0;
+        float fourBiggestSquaredMinus1 = fourWSquaredMinus1;
         
-        if ((primX <= primY && primX <= primZ) &&
-            (crossX.x >= crossY.x && crossX.x >= crossZ.x) &&
-            (crossX.y >= crossY.y && crossX.y >= crossZ.y) &&
-            (crossX.z >= crossY.z && crossX.z >= crossZ.z))
+        if (fourXSquaredMinus1 > fourBiggestSquaredMinus1)
         {
-            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(0)), new Vector3(1, 0, 0), axis);
-
-        } else if ((primY <= primX && primY <= primZ) &&
-                   (crossY.x >= crossX.x && crossY.x >= crossZ.x) &&
-                   (crossY.y >= crossX.y && crossY.y >= crossZ.y) &&
-                   (crossY.z >= crossX.z && crossY.z >= crossZ.z))
-        {
-            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(1)), new Vector3(0, 1, 0), axis);
-            
-        } else if ((primZ <= primX && primZ <= primY) &&
-                   (crossZ.x >= crossY.x && crossZ.x >= crossX.x) &&
-                   (crossZ.y >= crossY.y && crossZ.y >= crossX.y) &&
-                   (crossZ.z >= crossY.z && crossZ.z >= crossX.z))
-        {
-            angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(2)), new Vector3(0, 0, 1), axis);
-            
-        } else
-        {
-            return Quaternion.identity;
+            fourBiggestSquaredMinus1 = fourXSquaredMinus1;
+            biggestIndex = 1;
         }
-        
-        Debug.Log(angle);
-        
-        if(angle >= 0)
-            Debug.Log("hej");
-        
-        return new Quaternion(axis.x*MathF.Sin(angle/2),axis.y*MathF.Sin(angle/2),axis.z*MathF.Sin(angle/2), MathF.Cos(angle/2));
 
-        /*var normalizedVectorX = matrix.GetColumn(0).normalized;
-        var normalizedVectorY = matrix.GetColumn(1).normalized;
-        var normalizedVectorZ = matrix.GetColumn(2).normalized;
-        
-        var quat = new Quaternion();
-        
-        quat.w = Mathf.Sqrt( Mathf.Max( 0, 1 + normalizedVectorX.x + normalizedVectorY.y + normalizedVectorZ.z ) ) / 2; 
-        quat.x = Mathf.Sqrt( Mathf.Max( 0, 1 + normalizedVectorX.x - normalizedVectorY.y - normalizedVectorZ.z ) ) / 2; 
-        quat.y = Mathf.Sqrt( Mathf.Max( 0, 1 - normalizedVectorX.x + normalizedVectorY.y - normalizedVectorZ.z ) ) / 2; 
-        quat.z = Mathf.Sqrt( Mathf.Max( 0, 1 - normalizedVectorX.x - normalizedVectorY.y + normalizedVectorZ.z ) ) / 2; 
-        quat.x *= Mathf.Sign( quat.x * ( normalizedVectorY.z - normalizedVectorZ.y ) );
-        quat.y *= Mathf.Sign( quat.y * ( normalizedVectorZ.x - normalizedVectorX.z ) );
-        quat.z *= Mathf.Sign( quat.z * ( normalizedVectorX.y - normalizedVectorY.x ) );
-        return quat;*/
-        
-        
+        if (fourYSquaredMinus1 > fourBiggestSquaredMinus1)
+        {
+            fourBiggestSquaredMinus1 = fourYSquaredMinus1;
+            biggestIndex = 2;
+        }
+
+        if (fourZSquaredMinus1 > fourBiggestSquaredMinus1)
+        {
+            fourBiggestSquaredMinus1 = fourZSquaredMinus1;
+            biggestIndex = 3;
+        }
+
+        // Perform square root and division
+        float biggestVal = MathF.Sqrt(fourBiggestSquaredMinus1 + 1.0f) * 0.5f;
+        float mult = 0.25f / biggestVal;
+        // Apply table to compute quaternion values
+        switch (biggestIndex)
+        {
+            case 0:
+                w = biggestVal;
+                x = (matrix.m21 - matrix.m12) * mult;
+                y = (matrix.m02 - matrix.m20) * mult;
+                z = (matrix.m10 - matrix.m01) * mult;
+                break;
+
+            case 1:
+                x = biggestVal;
+                w = (matrix.m21 - matrix.m12) * mult;
+                y = (matrix.m10 - matrix.m01) * mult;
+                z = (matrix.m02 - matrix.m20) * mult;
+                break;
+
+            case 2:
+                y = biggestVal;
+                w = (matrix.m02 - matrix.m20) * mult;
+                x = (matrix.m10 - matrix.m01) * mult;
+                z = (matrix.m21 - matrix.m12) * mult;
+                break;
+
+            case 3:
+                z = biggestVal;
+                w = (matrix.m10 - matrix.m01) * mult;
+                x = (matrix.m02 - matrix.m20) * mult;
+                y = (matrix.m21 - matrix.m12) * mult;
+                break;
+
+        }
+
+        return new Quaternion(x, y, z, w);
+
     }
+
 
     public float ProjectPairAngle(Vector3 vectorPrim, Vector3 vectorUnit, Vector3 normal)
     {
@@ -247,22 +255,12 @@ public class ModelScript : MonoBehaviour {
 
     public Quaternion GetInterpolatedQuaternion(Quaternion quatA, Quaternion quatB)
     {
-        /*var inverseQuatA = new Quaternion(quatA.x, quatA.y, quatA.z, -quatA.w);
-        var quatI = quatB * inverseQuatA;
-        var previousAngle = MathF.Acos(quatI.w);
-        
-        var newAngle = previousAngle * Time;
-        var axis = new Vector3(quatI.x, quatI.y, quatI.z) / MathF.Sin(previousAngle);
-        var newRot = axis * newAngle;
-        
-        var quatInterpolated = new Quaternion(newRot.x, newRot.y, newRot.z, newAngle);
-        return quatInterpolated * quatA;*/
-        
         // Variables for components
         float ax = quatA.x;
         float ay = quatA.y;
         float az = quatA.z;
         float aw = quatA.w;
+        
         float bx = quatB.x;
         float by = quatB.y;
         float bz = quatB.z;
@@ -303,10 +301,10 @@ public class ModelScript : MonoBehaviour {
         }
         
         // Interpolation
-        cw = aw*k0 + bw*k1;
         cx = ax*k0 + bx*k1;
         cy = ay*k0 + by*k1;
         cz = az*k0 + bz*k1;
+        cw = aw*k0 + bw*k1;
 
         return new Quaternion(cx, cy, cz, cw);
     }
@@ -316,17 +314,17 @@ public class ModelScript : MonoBehaviour {
         var newMatrix = Matrix4x4.identity;
         
         //Column 1
-        newMatrix.m00 = 1 - 2 * quat.y * quat.y - 2 * quat.z * quat.z;
-        newMatrix.m10 = 2 * quat.x * quat.y - 2 * quat.w * quat.z;
-        newMatrix.m20 = 2 * quat.x * quat.z + 2 * quat.w * quat.y;
+        newMatrix.m00 = 1 - 2 * (quat.y * quat.y) - 2 * (quat.z * quat.z);
+        newMatrix.m10 = 2 * (quat.x * quat.y) - 2 * (quat.w * quat.z);
+        newMatrix.m20 = 2 * (quat.x * quat.z) + 2 * (quat.w * quat.y);
         //Column 2
-        newMatrix.m01 = 2 * quat.x * quat.y + 2 * quat.w * quat.z;
-        newMatrix.m11 = 1 - 2 * quat.x * quat.x - 2 * quat.z * quat.z;
-        newMatrix.m21 = 2 * quat.y * quat.z - 2 * quat.w * quat.x;
+        newMatrix.m01 = 2 * (quat.x * quat.y) + 2 * (quat.w * quat.z);
+        newMatrix.m11 = 1 - 2 * (quat.x * quat.x) - 2 * (quat.z * quat.z);
+        newMatrix.m21 = 2 * (quat.y * quat.z) - 2 * (quat.w * quat.x);
         //Column 3
-        newMatrix.m02 = 2 * quat.x * quat.z - 2 * quat.w * quat.y;
-        newMatrix.m12 = 2 * quat.y * quat.z + 2 * quat.w * quat.x;
-        newMatrix.m22 = 1 - 2 * quat.x * quat.x - 2 * quat.y * quat.y;
+        newMatrix.m02 = 2 * (quat.x * quat.z) - 2 * (quat.w * quat.y);
+        newMatrix.m12 = 2 * (quat.y * quat.z) + 2 * (quat.w * quat.x);
+        newMatrix.m22 = 1 - 2 * (quat.x * quat.x) - 2 * (quat.y * quat.y);
 
         return newMatrix.transpose;
     }
@@ -362,7 +360,9 @@ public class ModelGUI : Editor {
         EditorGUI.BeginChangeCheck();
         var targetA = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixA), ex.GetRotation(ex.matrixA)); //Handle at translation-vector
         var targetB = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixB), ex.GetRotation(ex.matrixB)); //Handle at translation-vector
-
+        
+        Debug.Log(ex.GetRotation(ex.matrixB));
+        
         if (EditorGUI.EndChangeCheck()) {
             Undo.RecordObject(target, "Vector Positions");
 
@@ -379,11 +379,13 @@ public class ModelGUI : Editor {
         }
         
         EditorGUI.BeginChangeCheck();
-        var c = Handles.RotationHandle(ex.GetRotation(ex.matrixA), ex.GetTranslationVector(ex.matrixA)); //H
+        var c = Handles.RotationHandle(ex.GetRotation(ex.matrixA), ex.GetTranslationVector(ex.matrixA));
+        var d = Handles.RotationHandle(ex.GetRotation(ex.matrixB), ex.GetTranslationVector(ex.matrixB));
 
         if (EditorGUI.EndChangeCheck()) {
             Undo.RecordObject(target, "Vector Positions");
             ex.matrixA = ex.SetRotation(ex.matrixA, ex.ConvertQuaternion(c));
+            ex.matrixB = ex.SetRotation(ex.matrixB, ex.ConvertQuaternion(d));
 
             EditorUtility.SetDirty(target);
         }
