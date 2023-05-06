@@ -163,18 +163,33 @@ public class ModelScript : MonoBehaviour {
         var crossZ = Vector3.Cross(new Vector3(0, 0, 1),GetNormalizedVector(matrix.GetColumn(2)));
 
         var axis = GetNormalizedVector(crossX + crossY + crossZ);
+        Debug.Log(crossX);
+        Debug.Log(crossY);
+        Debug.Log(crossZ);
+        
+        if(crossX == Vector3.zero && crossY == Vector3.zero && crossZ == Vector3.zero)
+            return Quaternion.identity;
 
         var angle = 0.0f;
         
-        if (primX <= primY && primX <= primZ)
+        if ((primX <= primY && primX <= primZ) &&
+            (crossX.x >= crossY.x && crossX.x >= crossZ.x) &&
+            (crossX.y >= crossY.y && crossX.y >= crossZ.y) &&
+            (crossX.z >= crossY.z && crossX.z >= crossZ.z))
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(0)), new Vector3(1, 0, 0), axis);
 
-        } else if (primY <= primX && primY <= primZ)
+        } else if ((primY <= primX && primY <= primZ) &&
+                   (crossY.x >= crossX.x && crossY.x >= crossZ.x) &&
+                   (crossY.y >= crossX.y && crossY.y >= crossZ.y) &&
+                   (crossY.z >= crossX.z && crossY.z >= crossZ.z))
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(1)), new Vector3(0, 1, 0), axis);
             
-        } else if (primZ <= primX && primZ <= primY)
+        } else if ((primZ <= primX && primZ <= primY) &&
+                   (crossZ.x >= crossY.x && crossZ.x >= crossX.x) &&
+                   (crossZ.y >= crossY.y && crossZ.y >= crossX.y) &&
+                   (crossZ.z >= crossY.z && crossZ.z >= crossX.z))
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(2)), new Vector3(0, 0, 1), axis);
             
@@ -182,6 +197,11 @@ public class ModelScript : MonoBehaviour {
         {
             return Quaternion.identity;
         }
+        
+        Debug.Log(angle);
+        
+        if(angle >= 0)
+            Debug.Log("hej");
         
         return new Quaternion(axis.x*MathF.Sin(angle/2),axis.y*MathF.Sin(angle/2),axis.z*MathF.Sin(angle/2), MathF.Cos(angle/2));
 
