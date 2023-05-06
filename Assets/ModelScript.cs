@@ -17,6 +17,13 @@ public class ModelScript : MonoBehaviour {
     [SerializeField,HideInInspector]internal Matrix4x4 matrixB = Matrix4x4.identity;
     [SerializeField,HideInInspector]internal Matrix4x4 matrixI = Matrix4x4.identity;
 
+    [SerializeField] 
+    private bool interpolateTranslation = true;
+    [SerializeField] 
+    private bool interpolateRotation = true;
+    [SerializeField] 
+    private bool interpolateScale = true;
+
     void OnEnable() {
         vectors = GetComponent<VectorRenderer>();
     }
@@ -25,17 +32,39 @@ public class ModelScript : MonoBehaviour {
     {
         //matrixA = Matrix4x4.identity;
         //matrixB = Matrix4x4.identity;
-        
-        var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
-        SetTranslationVector(ref matrixI, interpolatedTranslation);
 
-        var rotationA = GetRotation(matrixA);
-        var rotationB = GetRotation(matrixB);
-        var rotationI = GetInterpolatedQuaternion(rotationA, rotationB);
-        var rotationMatrixI = ConvertQuaternion(rotationI);
-        SetRotation(ref matrixI, rotationMatrixI);
+        if (interpolateTranslation)
+        {
+            var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
+            SetTranslationVector(ref matrixI, interpolatedTranslation);
+        }
+        else
+        {
+            SetTranslationVector(ref matrixI,GetTranslationVector(matrixA));
+        }
+
+        if (interpolateRotation)
+        {
+            var rotationA = GetRotation(matrixA);
+            var rotationB = GetRotation(matrixB);
+            var rotationI = GetInterpolatedQuaternion(rotationA, rotationB);
+            var rotationMatrixI = ConvertQuaternion(rotationI);
+            matrixI = SetRotation( matrixI, rotationMatrixI);
+        }
+        else
+        {
+            matrixI = SetRotation(matrixI, ConvertQuaternion(GetRotation(matrixA)));
+        }
+
+        if (interpolateScale)
+        {
+            SetScale(ref matrixI, GetInterpolatedScaleMagnitudes(matrixA, matrixB));
+        }
+        else
+        {
+            SetScale(ref matrixI, new Vector3(1,1,1));
+        }
         
-        //SetScale(ref matrixI, GetInterpolatedScaleMagnitudes(matrixA, matrixB));
         
         Vector3 AX = matrixA.GetColumn(0); //GetColumn returns a vector representing the index, example index:0 returns (m00, m10, m20)
         Vector3 AY = matrixA.GetColumn(1);
@@ -136,15 +165,15 @@ public class ModelScript : MonoBehaviour {
 
         var angle = 0.0f;
         
-        if (primX < primY && primX < primZ)
+        if (primX <= primY && primX <= primZ)
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(0)), new Vector3(1, 0, 0), axis);
 
-        } else if (primY < primX && primY < primZ)
+        } else if (primY <= primX && primY <= primZ)
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(1)), new Vector3(0, 1, 0), axis);
             
-        } else if (primZ < primX && primZ < primY)
+        } else if (primZ <= primX && primZ <= primY)
         {
             angle = ProjectPairAngle(GetNormalizedVector(matrix.GetColumn(2)), new Vector3(0, 0, 1), axis);
             
@@ -256,22 +285,22 @@ public class ModelScript : MonoBehaviour {
         var newMatrix = Matrix4x4.identity;
         
         //Column 1
-        newMatrix.m00 = (1 - 2 * (quat.y * quat.y) - 2 * (quat.z * quat.z));
-        newMatrix.m10 = (2 * quat.x * quat.y) - (2 * quat.w * quat.z);
-        newMatrix.m20 = (2 * quat.x * quat.z) + (2 * quat.w * quat.y);
+        newMatrix.m00 = 1 - 2 * quat.y * quat.y - 2 * quat.z * quat.z;
+        newMatrix.m10 = 2 * quat.x * quat.y - 2 * quat.w * quat.z;
+        newMatrix.m20 = 2 * quat.x * quat.z + 2 * quat.w * quat.y;
         //Column 2
-        newMatrix.m01 = (2 * quat.x * quat.y) + (2 * quat.w * quat.z);
-        newMatrix.m11 = (1 - 2 * (quat.x * quat.x) - 2 * (quat.z * quat.z));
-        newMatrix.m21 = (2 * quat.y * quat.z) - (2 * quat.w * quat.x);
+        newMatrix.m01 = 2 * quat.x * quat.y + 2 * quat.w * quat.z;
+        newMatrix.m11 = 1 - 2 * quat.x * quat.x - 2 * quat.z * quat.z;
+        newMatrix.m21 = 2 * quat.y * quat.z - 2 * quat.w * quat.x;
         //Column 3
-        newMatrix.m02 = (2 * quat.x * quat.z) - (2 * quat.w * quat.y);
-        newMatrix.m12 = (2 * quat.y * quat.z) + (2 * quat.w * quat.x);
-        newMatrix.m22 = (1 - 2 * (quat.x * quat.x) - 2 * (quat.y * quat.y));
+        newMatrix.m02 = 2 * quat.x * quat.z - 2 * quat.w * quat.y;
+        newMatrix.m12 = 2 * quat.y * quat.z + 2 * quat.w * quat.x;
+        newMatrix.m22 = 1 - 2 * quat.x * quat.x - 2 * quat.y * quat.y;
 
-        return newMatrix;
+        return newMatrix.transpose;
     }
 
-    public void SetRotation(ref Matrix4x4 matrix, Matrix4x4 rotationMatrix)
+    public Matrix4x4 SetRotation(Matrix4x4 matrix, Matrix4x4 rotationMatrix)
     {
         matrix.m00 = rotationMatrix.m00;
         matrix.m01 = rotationMatrix.m01;
@@ -282,6 +311,8 @@ public class ModelScript : MonoBehaviour {
         matrix.m20 = rotationMatrix.m20;
         matrix.m21 = rotationMatrix.m21;
         matrix.m22 = rotationMatrix.m22;
+
+        return matrix;
     }
 
     public Vector3 GetNormalizedVector(Vector3 vector)
@@ -298,26 +329,33 @@ public class ModelGUI : Editor {
         if (ex == null) return;
 
         EditorGUI.BeginChangeCheck();
-        var a = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixA), ex.GetRotation(ex.matrixA)); //Handle at translation-vector
-        var b = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixB), ex.GetRotation(ex.matrixB)); //Handle at translation-vector
+        var targetA = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixA), ex.GetRotation(ex.matrixA)); //Handle at translation-vector
+        var targetB = Handles.PositionHandle(ex.GetTranslationVector(ex.matrixB), ex.GetRotation(ex.matrixB)); //Handle at translation-vector
 
         if (EditorGUI.EndChangeCheck()) {
             Undo.RecordObject(target, "Vector Positions");
-            ex.SetTranslationVector(ref ex.matrixA, a); //Set translation-vector to handles position
-            ex.SetTranslationVector(ref ex.matrixB, b); //Set translation-vector to handles position
+
+            var copyA = ex.matrixA;
+            var copyB = ex.matrixB;
+            
+            ex.SetTranslationVector(ref copyA, targetA); //Set translation-vector to handles position
+            ex.SetTranslationVector(ref copyB, targetB); //Set translation-vector to handles position
+
+            ex.matrixA = copyA;
+            ex.matrixB = copyB;
 
             EditorUtility.SetDirty(target);
         }
         
-        EditorGUI.BeginChangeCheck();
+        /*EditorGUI.BeginChangeCheck();
         var c = Handles.RotationHandle(ex.GetRotation(ex.matrixA), ex.GetTranslationVector(ex.matrixA)); //H
 
         if (EditorGUI.EndChangeCheck()) {
             Undo.RecordObject(target, "Vector Positions");
-            ex.SetRotation(ref ex.matrixA, ex.ConvertQuaternion(c));
+            ex.matrixA = ex.SetRotation(ex.matrixA, ex.ConvertQuaternion(c));
 
             EditorUtility.SetDirty(target);
-        }
+        }*/
     }
     public override void OnInspectorGUI()
     {
@@ -378,7 +416,7 @@ public class ModelGUI : Editor {
             EditorGUILayout.BeginHorizontal();
             for (var p = 0; p < 4; p++)
             {
-                resultB[o, p] = EditorGUILayout.FloatField((ex.matrixI[o, p]));
+                resultI[o, p] = EditorGUILayout.FloatField((ex.matrixI[o, p]));
             }
             EditorGUILayout.EndHorizontal();
         }
@@ -391,7 +429,6 @@ public class ModelGUI : Editor {
             Undo.RecordObject(ex, "Changed matrix");
             ex.matrixA = resultA;
             ex.matrixB = resultB;
-            ex.matrixI = resultI;
             EditorUtility.SetDirty(ex);
         }
     }
