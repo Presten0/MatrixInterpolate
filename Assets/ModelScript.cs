@@ -33,17 +33,17 @@ public class ModelScript : MonoBehaviour {
         //matrixA = Matrix4x4.identity;
         //matrixB = Matrix4x4.identity;
 
-        if (interpolateTranslation)
+        if (interpolateTranslation) //Check if user wants to interpolate translation
         {
             var interpolatedTranslation = (1.0f - Time) * GetTranslationVector(matrixA) + Time * GetTranslationVector(matrixB);
             SetTranslationVector(ref matrixI, interpolatedTranslation);
         }
         else
         {
-            SetTranslationVector(ref matrixI,GetTranslationVector(matrixA));
+            SetTranslationVector(ref matrixI, GetTranslationVector(matrixA));
         }
 
-        if (interpolateRotation)
+        if (interpolateRotation) //Check if user wants to interpolate rotation
         {
             var rotationA = GetRotation(matrixA);
             var rotationB = GetRotation(matrixB);
@@ -56,7 +56,7 @@ public class ModelScript : MonoBehaviour {
             matrixI = SetRotation(matrixI, ConvertQuaternion(GetRotation(matrixA)));
         }
 
-        if (interpolateScale)
+        if (interpolateScale) //Check if user wants to interpolate scale
         {
             SetScale(ref matrixI, GetInterpolatedScaleMagnitudes(matrixA, matrixB));
         }
@@ -65,9 +65,10 @@ public class ModelScript : MonoBehaviour {
             SetScale(ref matrixI, new Vector3(1,1,1));
         }
         
+        // Variables for vector addition used for the visualization of the unit vectors per matrix
         
-        Vector3 AX = matrixA.GetColumn(0); //GetColumn returns a vector representing the index, example index:0 returns (m00, m10, m20)
-        Vector3 AY = matrixA.GetColumn(1);
+        Vector3 AX = matrixA.GetColumn(0); //GetColumn returns a vector representing the column with index, example index:0 returns (m00, m10, m20)
+        Vector3 AY = matrixA.GetColumn(1); 
         Vector3 AZ = matrixA.GetColumn(2);
         
         Vector3 BX = matrixB.GetColumn(0);
@@ -108,10 +109,10 @@ public class ModelScript : MonoBehaviour {
 
     public Vector3 GetTranslationVector(Matrix4x4 matrix)
     {
-        return matrix.GetColumn(3);
+        return matrix.GetColumn(3); //Returns Vector3(m03, m13, m23)
     }
     
-    public void SetTranslationVector(ref Matrix4x4 matrix, Vector3 translationVector)
+    public void SetTranslationVector(ref Matrix4x4 matrix, Vector3 translationVector) //Sets 
     {
         matrix.m03 = translationVector.x;
         matrix.m13 = translationVector.y;
@@ -156,7 +157,7 @@ public class ModelScript : MonoBehaviour {
         var primX = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(0)),new Vector3(1, 0, 0));
         var primY = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(1)),new Vector3(0, 1, 0));
         var primZ = Vector3.Dot(GetNormalizedVector(matrix.GetColumn(2)),new Vector3(0, 0, 1));
-        
+
         var crossX = Vector3.Cross(new Vector3(1, 0, 0),GetNormalizedVector(matrix.GetColumn(0)));
         var crossY = Vector3.Cross(new Vector3(0, 1, 0),GetNormalizedVector(matrix.GetColumn(1)));
         var crossZ = Vector3.Cross(new Vector3(0, 0, 1),GetNormalizedVector(matrix.GetColumn(2)));
@@ -183,19 +184,43 @@ public class ModelScript : MonoBehaviour {
         }
         
         return new Quaternion(axis.x*MathF.Sin(angle/2),axis.y*MathF.Sin(angle/2),axis.z*MathF.Sin(angle/2), MathF.Cos(angle/2));
+
+        /*var normalizedVectorX = matrix.GetColumn(0).normalized;
+        var normalizedVectorY = matrix.GetColumn(1).normalized;
+        var normalizedVectorZ = matrix.GetColumn(2).normalized;
+        
+        var quat = new Quaternion();
+        
+        quat.w = Mathf.Sqrt( Mathf.Max( 0, 1 + normalizedVectorX.x + normalizedVectorY.y + normalizedVectorZ.z ) ) / 2; 
+        quat.x = Mathf.Sqrt( Mathf.Max( 0, 1 + normalizedVectorX.x - normalizedVectorY.y - normalizedVectorZ.z ) ) / 2; 
+        quat.y = Mathf.Sqrt( Mathf.Max( 0, 1 - normalizedVectorX.x + normalizedVectorY.y - normalizedVectorZ.z ) ) / 2; 
+        quat.z = Mathf.Sqrt( Mathf.Max( 0, 1 - normalizedVectorX.x - normalizedVectorY.y + normalizedVectorZ.z ) ) / 2; 
+        quat.x *= Mathf.Sign( quat.x * ( normalizedVectorY.z - normalizedVectorZ.y ) );
+        quat.y *= Mathf.Sign( quat.y * ( normalizedVectorZ.x - normalizedVectorX.z ) );
+        quat.z *= Mathf.Sign( quat.z * ( normalizedVectorX.y - normalizedVectorY.x ) );
+        return quat;*/
+        
+        
     }
 
     public float ProjectPairAngle(Vector3 vectorPrim, Vector3 vectorUnit, Vector3 normal)
     {
-        var projPrim = Vector3.ProjectOnPlane(vectorPrim, normal);
-        var projUnit = Vector3.ProjectOnPlane(vectorUnit, normal);
-        var scalarProd = Vector3.Dot(projUnit, projPrim);
+        var normalMag = MathF.Sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z); //Get magnitude of normal of plane
+        var projPrimOnNormal = ((Vector3.Dot(vectorPrim, normal) / (normalMag * normalMag))) * normal; //Project the vector onto the normal
+        var projUnitOnNormal = ((Vector3.Dot(vectorUnit, normal) / (normalMag * normalMag))) * normal; //Project the vector onto the normal
+
+        var projPrim = vectorPrim - projPrimOnNormal; //Vector-subtraction to get primVector parallel to plane (projection onto plane)
+        var projUnit = vectorUnit - projUnitOnNormal; //Vector-subtraction to get unitVector parallel to plane (projection onto plane)
         
+        var scalarProd = Vector3.Dot(projUnit, projPrim); //Dot-product between the projected vectors
+        
+        //Get magnitude of each vector projected onto plane
         var projprimMag = MathF.Sqrt((projPrim.x * projPrim.x) + (projPrim.y * projPrim.y) +
                                   (projPrim.z * projPrim.z));
         var projUnitMag = MathF.Sqrt((projUnit.x * projUnit.x) + (projUnit.y * projUnit.y) +
                                   (projUnit.z * projUnit.z));
-
+        
+        //Formula to convert dot-product to angle
         return MathF.Acos(scalarProd / (projprimMag * projUnitMag));
         
     }
@@ -212,9 +237,8 @@ public class ModelScript : MonoBehaviour {
         
         var quatInterpolated = new Quaternion(newRot.x, newRot.y, newRot.z, newAngle);
         return quatInterpolated * quatA;*/
-
-
-        // The two input quaternions
+        
+        // Variables for components
         float ax = quatA.x;
         float ay = quatA.y;
         float az = quatA.z;
@@ -224,19 +248,13 @@ public class ModelScript : MonoBehaviour {
         float bz = quatB.z;
         float bw = quatB.w;
 
-// The interpolation parameter
-        float t = Time;
+        float t = Time; // Interpolation variable
 
-// The output quaternion will be computed here
-        float cx,cy,cz,cw;
-
-// Compute the "cosine of the angle" between the
-// quaternions, using the dot product
-        float cosOmega = aw*bw + ax*bx + ay*by + az*bz;
-
-// If negative dot, negate one of the input
-// quaternions, to take the shorter 4D "arc"
-        if (cosOmega < 0.0f) {
+        float cx,cy,cz,cw; // Output components
+        
+        float cosOmega = aw*bw + ax*bx + ay*by + az*bz; // Get the cosine
+        
+        if (cosOmega < 0.0f) { // If the cosine is negative, negate components of one of the quaternions
             bw = -bw;
             bx = -bx;
             by = -by;
@@ -244,34 +262,27 @@ public class ModelScript : MonoBehaviour {
             cosOmega = -cosOmega;
         }
 
-// Check if they are very close together, to protect
-// against divide-by-zero
         float k0, k1;
-        if (cosOmega > 0.9999f) {
+        if (cosOmega > 0.9999f) { // To not be able to divide by zero
 
-            // Very close - just use linear interpolation
+            //linear interpolation
             k0 = 1.0f-t;
             k1 = t;
 
         } else {
 
-            // Compute the sin of the angle using the
-            // trig identity sin^2(omega) + cos^2(omega) = 1
-            float sinOmega = Mathf.Sqrt(1.0f - cosOmega*cosOmega);
+            float sinOmega = Mathf.Sqrt(1.0f - cosOmega*cosOmega); // Compute the sin of the angle using the trig identity sin^2(omega) + cos^2(omega) = 1
+            
+            float omega = Mathf.Atan2(sinOmega, cosOmega); // Compute the angle from its sine and cosine
 
-            // Compute the angle from its sine and cosine
-            float omega = Mathf.Atan2(sinOmega, cosOmega);
-
-            // Compute inverse of denominator, so we only have
-            // to divide once
-            float oneOverSinOmega = 1.0f / sinOmega;
+            float oneOverSinOmega = 1.0f / sinOmega; // Compute inverse of denominator
 
             // Compute interpolation parameters
             k0 = Mathf.Sin((1.0f - t) * omega) * oneOverSinOmega;
             k1 = Mathf.Sin(t * omega) * oneOverSinOmega;
         }
-
-// Interpolate
+        
+        // Interpolation
         cw = aw*k0 + bw*k1;
         cx = ax*k0 + bx*k1;
         cy = ay*k0 + by*k1;
@@ -347,7 +358,7 @@ public class ModelGUI : Editor {
             EditorUtility.SetDirty(target);
         }
         
-        /*EditorGUI.BeginChangeCheck();
+        EditorGUI.BeginChangeCheck();
         var c = Handles.RotationHandle(ex.GetRotation(ex.matrixA), ex.GetTranslationVector(ex.matrixA)); //H
 
         if (EditorGUI.EndChangeCheck()) {
@@ -355,7 +366,7 @@ public class ModelGUI : Editor {
             ex.matrixA = ex.SetRotation(ex.matrixA, ex.ConvertQuaternion(c));
 
             EditorUtility.SetDirty(target);
-        }*/
+        }
     }
     public override void OnInspectorGUI()
     {
