@@ -282,7 +282,7 @@ public class ModelScript : MonoBehaviour {
 
         float cx,cy,cz,cw; // Output components of interpolated quaternion
         
-        float cosOmega = aw*bw + ax*bx + ay*by + az*bz; // Get the cosine of the angle between the quaternions
+        float cosOmega = aw*bw + ax*bx + ay*by + az*bz; // Get the cosine of the angle between the quaternions with dot product
         
         if (cosOmega < 0.0f) { // If the cosine is negative, negate components of one of the quaternions to get shortest angle
             bw = -bw;
